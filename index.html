@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackjack Gambling Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+        }
+        #game-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #player-hand, #dealer-hand {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .card {
+            width: 80px;
+            height: 120px;
+            background: #fff;
+            color: #000;
+            border-radius: 10px;
+            margin: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+        .red { color: #e60000; }
+        .black { color: #000; }
+        #betting-area, #controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #ffcc00;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #e6b800;
+        }
+        button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+        }
+        #result, #balance {
+            font-size: 20px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Blackjack Game</h1>
+        <div id="dealer-hand"></div>
+        <div id="player-hand"></div>
+        <div id="betting-area">
+            <label for="bet-amount">Bet Amount ($): </label>
+            <input type="number" id="bet-amount" min="1" value="10">
+            <button onclick="startGame()">Start Game</button>
+        </div>
+        <div id="controls">
+            <button id="hit-btn" onclick="hit()" disabled>Hit</button>
+            <button id="stand-btn" onclick="stand()" disabled>Stand</button>
+        </div>
+        <p id="result"></p>
+        <p id="balance">Balance: $100</p>
+    </div>
+
+    <script>
+        let balance = 100;
+        let currentBet = 0;
+        let playerHand = [];
+        let dealerHand = [];
+        let deck = [];
+        const suits = ['♠', '♣', '♥', '♦'];
+        const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        const resultDisplay = document.getElementById('result');
+        const balanceDisplay = document.getElementById('balance');
+        const playerHandDiv = document.getElementById('player-hand');
+        const dealerHandDiv = document.getElementById('dealer-hand');
+        const hitBtn = document.getElementById('hit-btn');
+        const standBtn = document.getElementById('stand-btn');
+
+        // Initialize deck
+        function createDeck() {
+            deck = [];
+            for (let suit of suits) {
+                for (let value of values) {
+                    deck.push({ value, suit });
+                }
+            }
+            shuffleDeck();
+        }
+
+        // Shuffle deck
+        function shuffleDeck() {
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+
+        // Draw a card
+        function drawCard() {
+            if (deck.length === 0) createDeck();
+            return deck.pop();
+        }
+
+        // Calculate hand value
+        function calculateHand(hand) {
+            let value = 0;
+            let aces = 0;
+            for (let card of hand) {
+                if (card.value === 'A') {
+                    aces++;
+                    value += 11;
+                } else if (['J', 'Q', 'K'].includes(card.value)) {
+                    value += 10;
+                } else {
+                    value += parseInt(card.value);
+                }
+            }
+            while (value > 21 && aces > 0) {
+                value -= 10;
+                aces--;
+            }
+            return value;
+        }
+
+        // Display hand
+        function displayHand(hand, div, hideFirst = false) {
+            div.innerHTML = '';
+            hand.forEach((card, index) => {
+                if (hideFirst && index === 0) {
+                    div.innerHTML += '<div class="card">?</div>';
+                } else {
+                    const colorClass = (card.suit === '♥' || card.suit === '♦') ? 'red' : 'black';
+                    div.innerHTML += `<div class="card ${colorClass}">${card.value}${card.suit}</div>`;
+                }
+            });
+        }
+
+        // Update balance
+        function updateBalance() {
+            balanceDisplay.textContent = `Balance: $${balance}`;
+        }
+
+        // Start game
+        function startGame() {
+            currentBet = parseInt(document.getElementById('bet-amount').value);
+            if (currentBet <= 0 || currentBet > balance) {
+                resultDisplay.textContent = "Invalid bet amount or insufficient funds!";
+                return;
+            }
+            balance -= currentBet;
+            updateBalance();
+            playerHand = [drawCard(), drawCard()];
+            dealerHand = [drawCard(), drawCard()];
+            createDeck();
+            displayHand(playerHand, playerHandDiv);
+            displayHand(dealerHand, dealerHandDiv, true); // Hide dealer's first card
+            hitBtn.disabled = false;
+            standBtn.disabled = false;
+            resultDisplay.textContent = "Hit or Stand!";
+            checkPlayerBlackjack();
+        }
+
+        // Check for instant Blackjack
+        function checkPlayerBlackjack() {
+            if (calculateHand(playerHand) === 21) {
+                stand(); // Auto-stand if player gets Blackjack
+            }
+        }
+
+        // Hit: Draw another card
+        function hit() {
+            playerHand.push(drawCard());
+            displayHand(playerHand, playerHandDiv);
+            const playerValue = calculateHand(playerHand);
+            if (playerValue > 21) {
+                endGame("You busted! Dealer wins.");
+            }
+        }
+
+        // Stand: End player's turn, dealer plays
+        function stand() {
+            hitBtn.disabled = true;
+            standBtn.disabled = true;
+            displayHand(dealerHand, dealerHandDiv, false); // Reveal dealer's hand
+            let dealerValue = calculateHand(dealerHand);
+            while (dealerValue < 17) {
+                dealerHand.push(drawCard());
+                displayHand(dealerHand, dealerHandDiv);
+                dealerValue = calculateHand(dealerHand);
+            }
+            determineWinner(dealerValue);
+        }
+
+        // Determine winner
+        function determineWinner(dealerValue) {
+            const playerValue = calculateHand(playerHand);
+            if (dealerValue > 21) {
+                balance += currentBet * 2;
+                resultDisplay.textContent = "Dealer busted! You win!";
+            } else if (playerValue > dealerValue) {
+                const multiplier = playerHand.length === 2 && playerValue === 21 ? 2.5 : 2; // 1.5x for Blackjack
+                balance += Math.floor(currentBet * multiplier);
+                resultDisplay.textContent = `You win! (${playerValue} vs ${dealerValue})`;
+            } else if (playerValue < dealerValue) {
+                resultDisplay.textContent = `Dealer wins! (${playerValue} vs ${dealerValue})`;
+            } else {
+                balance += currentBet; // Return bet on tie
+                resultDisplay.textContent = "It's a tie!";
+            }
+            updateBalance();
+            currentBet = 0;
+        }
+
+        // End game
+        function endGame(message) {
+            hitBtn.disabled = true;
+            standBtn.disabled = true;
+            resultDisplay.textContent = message;
+            currentBet = 0;
+        }
+
+        // Initialize
+        createDeck();
+        updateBalance();
+    </script>
+</body>
+</html>
